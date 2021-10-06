@@ -4,8 +4,10 @@ import * as express from "express";
 const http = require("http");
 const app = express();
 const cors = require('cors')
+const bodyParser = require('body-parser')
+
 app.use(cors())
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3100;
 
 const server = http.createServer();
 
@@ -13,18 +15,24 @@ server.on('request', (req: Request, res: Response) => {
   res.end('server worked!!!')
 })
 
-app.get("/", (req: Request, res: Response) => {
+app.use(bodyParser.json());
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+const HOST = '127.0.0.1'
+
+app.post('/login', (req, res) => {
+  console.log(req)
+  const { email } = req.body;
+  console.log(email);
+
+  res.send({ message: email});
+});
+
+app.set('port', PORT)
+
+app.get("/", (req, res) => {
   res.send("Hello World")
-})
-
-app.get("/images", async (req: Request, res: Response) => {
-  const images = await pool.query('SELECT * FROM images ORDER BY id ASC')
-  res.status(200).json(images.rows)
-})
-
-app.get("/categories", async (req: Request, res: Response) => {
-  const categories = await pool.query('SELECT * FROM categories ORDER BY id ASC')
-  res.status(200).json(categories.rows)
 })
 
 app.get("/dishes/:categoryId", async (req: Request, res: Response) => {
@@ -32,37 +40,9 @@ app.get("/dishes/:categoryId", async (req: Request, res: Response) => {
   res.status(200).json(dishes.rows)
 })
 
-app.get("/dishes", async (req: Request, res: Response) => {
-  const dishes = await pool.query(`SELECT * FROM dishes ORDER BY id ASC`)
-  res.status(200).json(dishes.rows)
-})
-
-app.get("/dish/:id", async (req: Request, res: Response) => {
-  const dishes = await pool.query(`SELECT * FROM dishes where dishes.id=${req.params.id} LIMIT 1`)
-  res.status(200).json(dishes.rows[0])
-})
-
-app.get("/images/:id", async (req: Request, res: Response) => {
-  const images = await pool.query(`SELECT * FROM images where images.id=${req.params.id} LIMIT 1`)
-  res.status(200).json(images.rows[0])
-})
-
 app.get("/order", async (req: Request, res: Response) => {
   const image = await pool.query(`SELECT * FROM order_items ORDER by id ASC`)
   res.status(200).json(image.rows)
-})
-
-app.get("/order-info-beta", async (req: Request, res: Response) => {
-  const order_items = await pool.query(`SELECT * FROM order_items ORDER by id ASC`)
-  for(let order_item of order_items.rows) {
-    const dish_item = await pool.query(`SELECT * FROM dishes where dishes.id=${order_item.item_id}`)
-
-    const image = await pool.query(`SELECT * FROM images where images.id=${1} LIMIT 1`)
-    dish_item.image_id = image.rows
-
-    order_item.item_id = dish_item.rows
-  }
-  res.status(200).json(order_items.rows)
 })
 
 app.get("/order-info", async (req: Request, res: Response) => {
@@ -88,29 +68,12 @@ app.get("/all_dishes-info", async (req: Request, res: Response) => {
   res.status(200).json(dishInfo.rows)
 })
 
-// app.get('/nav-images', async (req: Request, res: Response) => {
-//   const navImages = await pool.query('SELECT * FROM nav_images ORDER BY id ASC')
-//   res.status(200).json(navImages.rows)
-// })
-app.get('/nav-images', async (req: Request, res: Response) => {
+app.get('/categories', async (req: Request, res: Response) => {
   const navImages = await pool.query(`SELECT ni.id, ni.url, cat.id AS cat_id
   FROM nav_images AS ni 
   INNER JOIN categories AS cat ON cat.id = ni.category_id`)
   res.status(200).json(navImages.rows)
 })
-
-
-
-// app.get("/test", async (req: Request, res: Response) => {
-//   const result = await pool.query('SELECT * FROM dishes ORDER BY id ASC')
-//   for(let dish of result.rows) {
-//     const image = await pool.query(`SELECT * FROM images where images.id=${dish.image_id}`)
-//     dish.image = image.rows;
-//     // const categories = await pool.query(`SELECT * FROM categories where categories.id=${dish.categoryId}`)
-//     // dish.type = categories.rows;
-//   }
-//   res.status(200).json(result.rows)
-// })
 
 app.listen(PORT, () => {
   console.log(`Server is running in http://localhost:${PORT}`)
@@ -124,3 +87,4 @@ const pool = new Pool({
   password: 'admin',
   port: 5432,
 })
+
