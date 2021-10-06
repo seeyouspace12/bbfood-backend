@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 import {Request, Response} from "express";
 import * as express from "express";
 
@@ -5,6 +7,10 @@ const http = require("http");
 const app = express();
 const cors = require('cors')
 const bodyParser = require('body-parser')
+
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+
 
 app.use(cors())
 const PORT = process.env.PORT || 3100;
@@ -21,12 +27,96 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 const HOST = '127.0.0.1'
 
-app.post('/login', (req, res) => {
-  console.log(req)
-  const { email } = req.body;
-  console.log(email);
+let refreshTokensDB = [];
 
-  res.send({ message: email});
+function generateAccessToken(payload){
+  console.log(process.env.ACCESS_TOKEN_SECRET)
+  return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '2m'});
+}
+
+app.post('/register', async (req, res) => {
+
+  try{
+    const usersDB = await pool.query(`SELECT * FROM users`)
+
+    const users = usersDB.rows
+
+    let foundUser = users.find((data) => req.body.username === data.username);
+    if (!foundUser) {
+
+      let hashPassword = await bcrypt.hash(req.body.password, 10);
+
+      let newUser = {
+        id: Date.now(),
+        username: req.body.username,
+        password: hashPassword,
+        is_admin: false
+      };
+
+      pool.query(
+          `INSERT INTO users(username, password, is_admin)
+            VALUES('${newUser.username}', '${newUser.password}', '${newUser.is_admin}')`,
+          (err, res) => {
+            console.log(err, res);
+            pool.end();
+          }
+      );
+
+      res.json({ message: 'Registration successful'});
+    } else {
+      res.json({ message: 'Registration failed'});
+    }
+  } catch{
+    res.json({ message: 'Internal server error' });
+  }
+});
+
+app.post("/login", async function(req, res) {
+  let username = String(req.body.username);
+
+  let password = String(req.body.password);
+
+  try {
+    const usersDB = await pool.query(`SELECT * FROM users`)
+
+    const users = usersDB.rows
+
+    let foundUser = users.find((data) => username === data.username);
+
+
+    if (foundUser) {
+
+      let submittedPass = password;
+      let storedPass = foundUser.password;
+
+      const passwordMatch = await bcrypt.compare(submittedPass, storedPass);
+
+      if (passwordMatch) {
+
+        const payload = { username };
+
+        const aToken = generateAccessToken(payload);
+
+        const rToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET);
+
+        refreshTokensDB.push(rToken);			// it will store the newly generated refresh tokens
+
+        res.json({ AccessToken: aToken , RefreshToken: rToken , message: 'You are logged-in'});
+
+      } else {
+        res.json({ message: 'Invalid email or password'});
+      }
+    }
+    else {
+
+      let fakePass = `$2b$$10$ifgfgfgfgfgfgfggfgfgfggggfgfgfga`;		//fake password is used just to slow down the time required to send a response to the user
+      await bcrypt.compare(password, fakePass);
+
+      res.json({ message: 'Invalid email or password'});
+    }
+  } catch{
+    res.json({ message: 'Internal server error'});
+  }
 });
 
 app.set('port', PORT)
