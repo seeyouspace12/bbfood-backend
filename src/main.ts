@@ -62,7 +62,7 @@ app.post('/register', async (req, res) => {
           }
       );
 
-      res.json({ message: 'Registration successful'});
+      res.json({ message: 'Registration successful', username : newUser.username});
     } else {
       res.json({ message: 'Registration failed'});
     }
@@ -72,15 +72,17 @@ app.post('/register', async (req, res) => {
 });
 
 app.post("/login", async function(req, res) {
+  console.log('post')
   let username = String(req.body.username);
+  console.log(username)
 
   let password = String(req.body.password);
+  console.log(password)
 
   try {
     const usersDB = await pool.query(`SELECT * FROM users`)
 
     const users = usersDB.rows
-
     let foundUser = users.find((data) => username === data.username);
 
 
@@ -101,7 +103,8 @@ app.post("/login", async function(req, res) {
 
         refreshTokensDB.push(rToken);			// it will store the newly generated refresh tokens
 
-        res.json({ AccessToken: aToken , RefreshToken: rToken , message: 'You are logged-in'});
+        console.log('You are logged-in')
+        res.json({ AccessToken: aToken , RefreshToken: rToken , message: 'You are logged-in', username});
 
       } else {
         res.json({ message: 'Invalid email or password'});
@@ -118,6 +121,52 @@ app.post("/login", async function(req, res) {
     res.json({ message: 'Internal server error'});
   }
 });
+
+app.post("/dishes-for-order2", async (req, res) => {
+  let orderItems = req.body.items;
+  //orderItems = Array.from(orderItems)
+  let orderItemsInfo = []
+  
+  await orderItems.map( async itemId => {
+    let dishInfo = await pool.query(`SELECT d.id, d.title, d.ingredients, d.price, i.url
+      FROM dishes AS d 
+      INNER JOIN images AS i ON i.id = d.image_id
+      WHERE d.id=${itemId}`)
+    
+      dishInfo = dishInfo.rows
+      console.log(dishInfo)
+      orderItemsInfo.push(dishInfo)
+  });
+
+  console.log(orderItemsInfo)
+  setTimeout( () => {
+    res.status(200).json(orderItemsInfo)
+  }, 2000) 
+})
+
+app.post("/dishes-for-order", async (req, res) => {
+  let orderItems = req.body
+  let orderItemsInfo = []
+  console.log(req.body)
+
+  const dishes = await pool.query(`SELECT d.id, d.title, d.ingredients, d.price, i.url
+    FROM dishes AS d 
+    INNER JOIN images AS i ON i.id = d.image_id
+    ORDER by id ASC`)
+
+  orderItems.map(id => {
+    orderItemsInfo.push(dishes.rows.find(item => {
+      if(item.id == id) {
+        console.log('true')
+      }
+      return item.id === id
+    }))
+  });
+
+  console.log(orderItemsInfo)
+
+  res.status(200).json(orderItemsInfo)
+})
 
 app.set('port', PORT)
 
@@ -150,6 +199,16 @@ app.get("/dishes-info/:id", async (req: Request, res: Response) => {
   WHERE d.categoryid=${req.params.id}`)
   res.status(200).json(dishInfo.rows)
 })
+
+
+
+// app.get("/dishes-info/:[]", async (req: Request, res: Response) => {
+//   const dishInfo = await pool.query(`SELECT d.id, d.title, d.ingredients, d.price, i.url
+//   FROM dishes AS d 
+//   INNER JOIN images AS i ON i.id = d.image_id
+//   WHERE d.categoryid=${req.params.id}`)
+//   res.status(200).json(dishInfo.rows)
+// })
 
 app.get("/all_dishes-info", async (req: Request, res: Response) => {
   const dishInfo = await pool.query(`SELECT d.id, d.title, d.ingredients, d.price, i.url
